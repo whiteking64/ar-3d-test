@@ -6,29 +6,46 @@ let previousMousePosition = {
     y: 0
 };
 
+// より正確なデバイス/ブラウザ検出
+const isIOS = () => {
+    return [
+        'iPad Simulator',
+        'iPhone Simulator',
+        'iPod Simulator',
+        'iPad',
+        'iPhone',
+        'iPod'
+    ].includes(navigator.platform)
+    // iPadOS 13以降のデバイス検出
+    || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+};
+
+// デバッグ情報の表示
+const deviceInfo = document.getElementById('deviceInfo');
+deviceInfo.innerHTML = `
+    Platform: ${navigator.platform}<br>
+    UserAgent: ${navigator.userAgent}<br>
+    isIOS: ${isIOS()}<br>
+    hasXR: ${!!navigator.xr}
+`;
+
 init();
 
 function init() {
-    // シーンの作成
     scene = new THREE.Scene();
-
-    // カメラの設定
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 5;
 
-    // レンダラーの設定
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     document.body.appendChild(renderer.domElement);
 
-    // 立方体の作成
     const geometry = new THREE.BoxGeometry(1, 1, 1);
     const material = new THREE.MeshBasicMaterial({ color: 0x0088ff });
     cube = new THREE.Mesh(geometry, material);
     scene.add(cube);
 
-    // イベントリスナーの設定
     renderer.domElement.addEventListener('mousedown', onMouseDown);
     renderer.domElement.addEventListener('mousemove', onMouseMove);
     renderer.domElement.addEventListener('mouseup', onMouseUp);
@@ -37,22 +54,35 @@ function init() {
     renderer.domElement.addEventListener('touchend', onTouchEnd);
     window.addEventListener('resize', onWindowResize);
 
-    // AR機能の初期化
     document.getElementById('startAR').addEventListener('click', startAR);
 
     animate();
 }
 
 function startAR() {
-    if (navigator.xr) {
+    if (isIOS()) {
+        // iOSデバイスの場合、Quick Lookを使用
+        const anchor = document.createElement('a');
+        anchor.setAttribute('rel', 'ar');
+        anchor.setAttribute('href', 'https://developer.apple.com/augmented-reality/quick-look/models/teapot/teapot.usdz');
+        // iOS 13.3以降のChrome対応
+        anchor.appendChild(document.createElement('img'));
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+    } else if (navigator.xr) {
+        // WebXRが利用可能な場合（Android等）
         document.getElementById('loading').style.display = 'block';
         
         navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
             if (supported) {
                 navigator.xr.requestSession('immersive-ar').then((session) => {
-                    // AR セッションの開始処理
                     document.getElementById('loading').style.display = 'none';
-                    // ここにARセッションのセットアップコードを追加
+                    // ARセッションのセットアップ
+                }).catch(error => {
+                    console.error('AR session request failed:', error);
+                    alert('Failed to start AR session');
+                    document.getElementById('loading').style.display = 'none';
                 });
             } else {
                 alert('AR is not supported on this device');
@@ -60,7 +90,7 @@ function startAR() {
             }
         });
     } else {
-        alert('WebXR is not available');
+        alert('AR is not available on this device/browser');
     }
 }
 

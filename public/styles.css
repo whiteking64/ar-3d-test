@@ -32,3 +32,14 @@ canvas {
     border-radius: 5px;
     display: none;
 }
+
+#deviceInfo {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px;
+    font-size: 12px;
+    border-radius: 5px;
+}
