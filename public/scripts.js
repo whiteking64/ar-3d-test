@@ -104,13 +104,33 @@ async function startAR() {
             const anchor = document.createElement('a');
             anchor.setAttribute('rel', 'ar');
             anchor.setAttribute('href', '/models/teapot.usdz');
-            anchor.appendChild(document.createElement('img'));
-            document.body.appendChild(anchor);
-            anchor.click();
-            document.body.removeChild(anchor);
+            // iOS 13以降の要件
+            anchor.setAttribute('id', 'ar-anchor');
+            // iOS 12のための画像要素
+            const img = document.createElement('img');
+            img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+            anchor.appendChild(img);
+
+            // Quick Look ARのサポートチェック
+            if (anchor.relList && anchor.relList.supports && anchor.relList.supports('ar')) {
+                logARStatus('AR Quick Look is supported');
+                // スタイルを追加して非表示に
+                anchor.style.display = 'none';
+                document.body.appendChild(anchor);
+                // iOSでのクリックイベントをトリガー
+                anchor.click();
+                // クリーンアップ
+                setTimeout(() => {
+                    document.body.removeChild(anchor);
+                }, 1000);
+                logARStatus('AR Quick Look launched');
+            } else {
+                throw new Error('AR Quick Look is not supported on this device/browser. Please use Safari.');
+            }
         } catch (error) {
             logARStatus(`iOS AR failed: ${error.message}`);
-            alert('Failed to launch AR view: ' + error.message);
+            const errorMessage = `Failed to launch AR view: ${error.message}\nPlease make sure you're using Safari on iOS 12 or later.`;
+            alert(errorMessage);
         }
     } else if (navigator.xr) {
         logARStatus('Starting Android AR session');
