@@ -59,38 +59,90 @@ function init() {
     animate();
 }
 
-function startAR() {
+async function startAR() {
     if (isIOS()) {
-        // iOSデバイスの場合、Quick Lookを使用
+        // iOS handling remains unchanged
         const anchor = document.createElement('a');
         anchor.setAttribute('rel', 'ar');
         anchor.setAttribute('href', 'https://developer.apple.com/augmented-reality/quick-look/models/teapot/teapot.usdz');
-        // iOS 13.3以降のChrome対応
         anchor.appendChild(document.createElement('img'));
         document.body.appendChild(anchor);
         anchor.click();
         document.body.removeChild(anchor);
     } else if (navigator.xr) {
-        // WebXRが利用可能な場合（Android等）
         document.getElementById('loading').style.display = 'block';
-        
-        navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
-            if (supported) {
-                navigator.xr.requestSession('immersive-ar').then((session) => {
-                    document.getElementById('loading').style.display = 'none';
-                    // ARセッションのセットアップ
-                }).catch(error => {
-                    console.error('AR session request failed:', error);
-                    alert('Failed to start AR session');
-                    document.getElementById('loading').style.display = 'none';
-                });
-            } else {
-                alert('AR is not supported on this device');
-                document.getElementById('loading').style.display = 'none';
+
+        try {
+            // Check if AR session is supported
+            const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
+            if (!isSupported) {
+                throw new Error('AR not supported');
             }
-        });
+
+            // Request AR session with required features
+            const session = await navigator.xr.requestSession('immersive-ar', {
+                requiredFeatures: ['local', 'hit-test'],
+                optionalFeatures: ['dom-overlay'],
+                domOverlay: { root: document.body }
+            });
+
+            // Make WebGL context XR compatible
+            const gl = renderer.getContext();
+            await gl.makeXRCompatible();
+
+            // Connect renderer to XR session
+            const xrLayer = new XRWebGLLayer(session, gl);
+            session.updateRenderState({ baseLayer: xrLayer });
+
+            // Get reference space
+            const referenceSpace = await session.requestReferenceSpace('local');
+
+            // Cleanup on session end
+            session.addEventListener('end', () => {
+                console.log('AR session ended');
+                document.getElementById('loading').style.display = 'none';
+            });
+
+            // Start rendering loop
+            session.requestAnimationFrame((time, frame) => {
+                // AR rendering loop
+                const pose = frame.getViewerPose(referenceSpace);
+                if (pose) {
+                    // Update AR view
+                    const view = pose.views[0];
+                    const viewport = xrLayer.getViewport(view);
+                    renderer.setSize(viewport.width, viewport.height);
+                    camera.matrix.fromArray(view.transform.matrix);
+                    camera.updateMatrixWorld(true);
+                }
+            });
+
+            document.getElementById('loading').style.display = 'none';
+            console.log('AR session started successfully');
+
+        } catch (error) {
+            console.error('AR session error:', error);
+            document.getElementById('loading').style.display = 'none';
+            
+            // Display detailed error message
+            let errorMessage = 'AR session failed: ';
+            if (error.name === 'SecurityError') {
+                errorMessage += 'Camera permission is required.';
+            } else if (error.name === 'NotAllowedError') {
+                errorMessage += 'Camera access is not allowed.';
+            } else if (error.name === 'NotSupportedError') {
+                errorMessage += 'AR is not supported on your device or browser.';
+            } else {
+                errorMessage += error.message || 'Unknown error occurred.';
+            }
+            alert(errorMessage);
+
+            // Update debug info
+            const deviceInfo = document.getElementById('deviceInfo');
+            deviceInfo.innerHTML += `<br>Error: ${errorMessage}`;
+        }
     } else {
-        alert('AR is not available on this device/browser');
+        alert('WebXR is not available on this device/browser');
     }
 }
 
