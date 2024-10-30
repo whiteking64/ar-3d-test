@@ -41,7 +41,7 @@ async function init() {
     // Load GLB model
     const loader = new THREE.GLTFLoader();
     try {
-        const gltf = await loader.loadAsync('/models/model.glb');
+        const gltf = await loader.loadAsync('/models/teapot.glb');
         model = gltf.scene;
         
         // Adjust model
@@ -83,7 +83,7 @@ async function startAR() {
     if (isIOS()) {
         const anchor = document.createElement('a');
         anchor.setAttribute('rel', 'ar');
-        anchor.setAttribute('href', '/models/model.usdz');
+        anchor.setAttribute('href', '/models/teapot.usdz');
         anchor.appendChild(document.createElement('img'));
         document.body.appendChild(anchor);
         anchor.click();
