@@ -103,13 +103,19 @@ async function init() {
 async function startAR() {
     if (isIOS()) {
         logARStatus('Starting iOS AR session');
-        const anchor = document.createElement('a');
-        anchor.setAttribute('rel', 'ar');
-        anchor.setAttribute('href', '/models/teapot.usdz');
-        anchor.appendChild(document.createElement('img'));
-        document.body.appendChild(anchor);
-        anchor.click();
-        document.body.removeChild(anchor);
+        try {
+            const anchor = document.createElement('a');
+            anchor.setAttribute('rel', 'ar');
+            anchor.setAttribute('href', '/models/teapot.usdz');
+            anchor.appendChild(document.createElement('img'));
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+        } catch (error) {
+            console.error('iOS AR error:', error);
+            logARStatus(`iOS AR failed: ${error.message}`);
+            alert('Failed to launch AR view: ' + error.message);
+        }
     } else if (navigator.xr) {
         logARStatus('Starting Android AR session');
         try {
