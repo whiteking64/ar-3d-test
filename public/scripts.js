@@ -1,28 +1,10 @@
 let camera, scene, renderer;
-let model;
+let model;  // Changed from cube to model
 let isDragging = false;
 let previousMousePosition = {
     x: 0,
     y: 0
 };
-
-// AR Session Status Tracking
-const arStatus = {
-    isModelLoaded: false,
-    isSessionSupported: false,
-    isSessionCreated: false,
-    isWebGLCompatible: false,
-    isReferenceSpaceCreated: false,
-    lastErrorMessage: null,
-    lastErrorStack: null,
-    sessionInitSteps: []
-};
-
-// Log status helper function
-function logARStatus(message) {
-    const timestamp = new Date().toISOString();
-    arStatus.sessionInitSteps.push(`${timestamp}: ${message}`);
-}
 
 const isIOS = () => {
     return [
@@ -36,26 +18,17 @@ const isIOS = () => {
     || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
 };
 
-// Enhanced debug info
 const deviceInfo = document.getElementById('deviceInfo');
-const debugInfo = {
-    platform: navigator.platform,
-    userAgent: navigator.userAgent,
-    isIOS: isIOS(),
-    hasXR: !!navigator.xr,
-    screenWidth: window.innerWidth,
-    screenHeight: window.innerHeight,
-    pixelRatio: window.devicePixelRatio
-};
-
-deviceInfo.innerHTML = Object.entries(debugInfo)
-    .map(([key, value]) => `${key}: ${value}<br>`)
-    .join('');
+deviceInfo.innerHTML = `
+    Platform: ${navigator.platform}<br>
+    UserAgent: ${navigator.userAgent}<br>
+    isIOS: ${isIOS()}<br>
+    hasXR: ${!!navigator.xr}
+`;
 
 init();
 
 async function init() {
-    logARStatus('Initializing AR application');
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 5;
@@ -68,7 +41,6 @@ async function init() {
     // Load GLB model
     const loader = new THREE.GLTFLoader();
     try {
-        logARStatus('Loading 3D model');
         const gltf = await loader.loadAsync('/models/teapot.glb');
         model = gltf.scene;
         
@@ -76,6 +48,7 @@ async function init() {
         model.position.set(0, 0, -2);
         scene.add(model);
 
+        // Add lights for better model visibility
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
         scene.add(ambientLight);
         
@@ -83,139 +56,72 @@ async function init() {
         directionalLight.position.set(0, 1, 1);
         scene.add(directionalLight);
 
-        arStatus.isModelLoaded = true;
-        logARStatus('3D model loaded successfully');
     } catch (error) {
-        logARStatus('Failed to load 3D model, falling back to cube');
+        console.error('Error loading 3D model:', error);
+        // Fallback to cube if model loading fails
         const geometry = new THREE.BoxGeometry(1, 1, 1);
         const material = new THREE.MeshBasicMaterial({ color: 0x0088ff });
         model = new THREE.Mesh(geometry, material);
         scene.add(model);
     }
 
-    setupEventListeners();
+    renderer.domElement.addEventListener('mousedown', onMouseDown);
+    renderer.domElement.addEventListener('mousemove', onMouseMove);
+    renderer.domElement.addEventListener('mouseup', onMouseUp);
+    renderer.domElement.addEventListener('touchstart', onTouchStart);
+    renderer.domElement.addEventListener('touchmove', onTouchMove);
+    renderer.domElement.addEventListener('touchend', onTouchEnd);
+    window.addEventListener('resize', onWindowResize);
+
+    document.getElementById('startAR').addEventListener('click', startAR);
+
     animate();
 }
 
 async function startAR() {
     if (isIOS()) {
-        logARStatus('Starting iOS AR session');
-        try {
-            const anchor = document.createElement('a');
-            anchor.setAttribute('rel', 'ar');
-            anchor.setAttribute('href', '/models/teapot.usdz');
-            // iOS 13以降の要件
-            anchor.setAttribute('id', 'ar-anchor');
-            // iOS 12のための画像要素
-            const img = document.createElement('img');
-            img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-            anchor.appendChild(img);
-
-            // Quick Look ARのサポートチェック
-            if (anchor.relList && anchor.relList.supports && anchor.relList.supports('ar')) {
-                logARStatus('AR Quick Look is supported');
-                // スタイルを追加して非表示に
-                anchor.style.display = 'none';
-                document.body.appendChild(anchor);
-                // iOSでのクリックイベントをトリガー
-                anchor.click();
-                // クリーンアップ
-                setTimeout(() => {
-                    document.body.removeChild(anchor);
-                }, 1000);
-                logARStatus('AR Quick Look launched');
-            } else {
-                throw new Error('AR Quick Look is not supported on this device/browser. Please use Safari.');
-            }
-        } catch (error) {
-            logARStatus(`iOS AR failed: ${error.message}`);
-            const errorMessage = `Failed to launch AR view: ${error.message}\nPlease make sure you're using Safari on iOS 12 or later.`;
-            alert(errorMessage);
-        }
+        const anchor = document.createElement('a');
+        anchor.setAttribute('rel', 'ar');
+        anchor.setAttribute('href', '/models/teapot.usdz');
+        anchor.appendChild(document.createElement('img'));
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
     } else if (navigator.xr) {
-        logARStatus('Starting Android AR session');
         try {
-            // Check AR support
-            logARStatus('Checking AR support');
-            const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
-            if (!isSupported) {
-                throw new Error('AR not supported');
-            }
-            arStatus.isSessionSupported = true;
-            logARStatus('AR is supported');
-
-            // Request AR session
-            logARStatus('Requesting AR session');
             const session = await navigator.xr.requestSession('immersive-ar', {
                 requiredFeatures: ['local'],
                 optionalFeatures: ['dom-overlay'],
                 domOverlay: { root: document.body }
             });
-            arStatus.isSessionCreated = true;
-            logARStatus('AR session created');
 
-            // Setup WebGL
-            logARStatus('Setting up WebGL');
             const gl = renderer.getContext();
             await gl.makeXRCompatible();
-            arStatus.isWebGLCompatible = true;
-            logARStatus('WebGL setup complete');
 
-            // Setup XR layer
-            const xrLayer = new XRWebGLLayer(session, gl);
-            session.updateRenderState({
-                baseLayer: xrLayer
-            });
-            logARStatus('XR layer setup complete');
-
-            // Get reference space
-            logARStatus('Requesting reference space');
             const referenceSpace = await session.requestReferenceSpace('local');
-            arStatus.isReferenceSpaceCreated = true;
-            logARStatus('Reference space created');
-
-            session.addEventListener('end', () => {
-                logARStatus('AR session ended');
-                session.removeEventListener('requestAnimationFrame', onXRFrame);
-            });
+            const xrLayer = new XRWebGLLayer(session, gl);
+            session.updateRenderState({ baseLayer: xrLayer });
 
             function onXRFrame(time, frame) {
-                session.requestAnimationFrame(onXRFrame);
                 const pose = frame.getViewerPose(referenceSpace);
-                if (!pose) return;
-
-                const view = pose.views[0];
-                const viewport = xrLayer.getViewport(view);
-                renderer.setSize(viewport.width, viewport.height);
-                camera.matrix.fromArray(view.transform.matrix);
-                camera.matrix.decompose(camera.position, camera.quaternion, camera.scale);
-                renderer.render(scene, camera);
+                if (pose) {
+                    const view = pose.views[0];
+                    const viewport = xrLayer.getViewport(view);
+                    renderer.setSize(viewport.width, viewport.height);
+                    camera.matrix.fromArray(view.transform.matrix);
+                    camera.updateMatrixWorld(true);
+                    renderer.render(scene, camera);
+                }
+                session.requestAnimationFrame(onXRFrame);
             }
 
             session.requestAnimationFrame(onXRFrame);
-            logARStatus('AR session running');
 
         } catch (error) {
-            arStatus.lastErrorMessage = error.message;
-            arStatus.lastErrorStack = error.stack;
-            logARStatus(`AR session failed: ${error.message}`);
-
-            // Display detailed status when error occurs
-            const statusMessage = `AR Session Status:\n
-                Model Loaded: ${arStatus.isModelLoaded}
-                Session Supported: ${arStatus.isSessionSupported}
-                Session Created: ${arStatus.isSessionCreated}
-                WebGL Compatible: ${arStatus.isWebGLCompatible}
-                Reference Space Created: ${arStatus.isReferenceSpaceCreated}
-                Last Error: ${arStatus.lastErrorMessage}
-                
-                Initialization Steps:
-                ${arStatus.sessionInitSteps.join('\n')}`;
-
-            alert(`Could not start AR.\n${statusMessage}`);
+            console.error('AR error:', error);
+            alert('Could not start AR: ' + (error.message || 'Unknown error'));
         }
     } else {
-        logARStatus('WebXR not available');
         alert('AR is not supported on this device/browser');
     }
 }
