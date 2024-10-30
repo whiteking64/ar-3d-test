@@ -22,7 +22,6 @@ const arStatus = {
 function logARStatus(message) {
     const timestamp = new Date().toISOString();
     arStatus.sessionInitSteps.push(`${timestamp}: ${message}`);
-    console.log(`AR Status: ${message}`);
 }
 
 const isIOS = () => {
@@ -49,7 +48,6 @@ const debugInfo = {
     pixelRatio: window.devicePixelRatio
 };
 
-console.log('Device Information:', debugInfo);
 deviceInfo.innerHTML = Object.entries(debugInfo)
     .map(([key, value]) => `${key}: ${value}<br>`)
     .join('');
@@ -89,7 +87,6 @@ async function init() {
         logARStatus('3D model loaded successfully');
     } catch (error) {
         logARStatus('Failed to load 3D model, falling back to cube');
-        console.error('Model loading error:', error);
         const geometry = new THREE.BoxGeometry(1, 1, 1);
         const material = new THREE.MeshBasicMaterial({ color: 0x0088ff });
         model = new THREE.Mesh(geometry, material);
@@ -112,7 +109,6 @@ async function startAR() {
             anchor.click();
             document.body.removeChild(anchor);
         } catch (error) {
-            console.error('iOS AR error:', error);
             logARStatus(`iOS AR failed: ${error.message}`);
             alert('Failed to launch AR view: ' + error.message);
         }
@@ -180,7 +176,6 @@ async function startAR() {
             logARStatus('AR session running');
 
         } catch (error) {
-            console.error('AR session error:', error);
             arStatus.lastErrorMessage = error.message;
             arStatus.lastErrorStack = error.stack;
             logARStatus(`AR session failed: ${error.message}`);
@@ -197,8 +192,7 @@ async function startAR() {
                 Initialization Steps:
                 ${arStatus.sessionInitSteps.join('\n')}`;
 
-            console.error(statusMessage);
-            alert(`Could not start AR. Check console for details.\n${statusMessage}`);
+            alert(`Could not start AR.\n${statusMessage}`);
         }
     } else {
         logARStatus('WebXR not available');
